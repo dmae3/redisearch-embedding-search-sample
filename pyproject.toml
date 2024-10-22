@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "redisearch-embedding-search-sample"
+version = "0.1.0"
+description = ""
+authors = ["dmae3 <daisuke0146@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+redis = "^5.1.1"
+datasets = "^3.0.1"
+numpy = "^2.1.2"
+openai = "^1.52.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
