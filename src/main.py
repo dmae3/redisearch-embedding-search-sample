@@ -38,6 +38,17 @@ schema = (
         },
     ),
     VectorField(
+        "text_embedding_hnsw",
+        "HNSW",
+        {
+            "TYPE": "FLOAT32",
+            "DIM": 1536,
+            "DISTANCE_METRIC": "COSINE",
+            "M": 40,
+            "EF_CONSTRUCTION": 200,
+        },
+    ),
+    VectorField(
         "image_embedding",
         "FLAT",
         {
@@ -96,6 +107,9 @@ def load_data():
             "text_embedding": np.array(item["text_embeddings"])
             .astype(np.float32)
             .tobytes(),
+            "text_embedding_hnsw": np.array(item["text_embeddings"])
+            .astype(np.float32)
+            .tobytes(),
             "image_embedding": np.array(item["image_embeddings"])
             .astype(np.float32)
             .tobytes(),
@@ -121,19 +135,32 @@ def search_listings(
     query_embedding, top_k=5, min_price=0, max_price=1000, wifi_required=False
 ):
     query_vector = query_embedding.astype(np.float32).tobytes()
-    print(query_embedding)
 
     # プレフィルタリング: 価格範囲
     price_filter = f"@price:[{min_price} {max_price}]"
-    vector_query = (
-        f"({price_filter})=>[KNN {top_k * 2} @text_embedding $query_vector AS score]"
+
+    # FLAT検索クエリ
+    flat_vector_query = f"({price_filter})=>[KNN {top_k * 2} @text_embedding $query_vector AS flat_score]"
+    flat_q = Query(flat_vector_query).sort_by("flat_score", asc=False).dialect(2)
+    flat_results = r.ft(index_name).search(
+        flat_q, query_params={"query_vector": query_vector}
     )
 
-    q = Query(vector_query).sort_by("score", asc=False).dialect(2)
+    # HNSW検索クエリ
+    hnsw_vector_query = f"({price_filter})=>[KNN {top_k * 2} @text_embedding_hnsw $query_vector AS hnsw_score]"
+    hnsw_q = Query(hnsw_vector_query).sort_by("hnsw_score", asc=False).dialect(2)
+    hnsw_results = r.ft(index_name).search(
+        hnsw_q, query_params={"query_vector": query_vector}
+    )
 
-    results = r.ft(index_name).search(q, query_params={"query_vector": query_vector})
+    print("\n=== FLAT Search Results ===")
+    display_results(flat_results, "flat_score", top_k, wifi_required)
 
-    print(f"\nSearch results:")
+    print("\n=== HNSW Search Results ===")
+    display_results(hnsw_results, "hnsw_score", top_k, wifi_required)
+
+
+def display_results(results, score_attr, top_k, wifi_required):
     displayed_results = 0
 
     for doc in results.docs:
@@ -144,13 +171,12 @@ def search_listings(
                 continue
 
             print("\n" + "=" * 80)
-
             print(f"\nID: {doc.id}")
             print(f"Name: {doc.name}")
             print(f"Space: {doc.space}")
             print(f"Price: ${doc.price}")
             print(f"Accommodates: {doc.accommodates}")
-            print(f"Similarity Score: {doc.score}")
+            print(f"Similarity Score: {getattr(doc, score_attr)}")
 
             print("\nAmenities:")
             amenities_per_line = 3
