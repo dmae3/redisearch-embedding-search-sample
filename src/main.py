@@ -140,24 +140,40 @@ def search_listings(
     price_filter = f"@price:[{min_price} {max_price}]"
 
     # FLAT検索クエリ
+    print("\n=== FLAT Search ===")
+    flat_start_time = time.time()
+
     flat_vector_query = f"({price_filter})=>[KNN {top_k * 2} @text_embedding $query_vector AS flat_score]"
-    flat_q = Query(flat_vector_query).sort_by("flat_score", asc=False).dialect(2)
+    flat_q = Query(flat_vector_query).sort_by("flat_score").dialect(2)
     flat_results = r.ft(index_name).search(
         flat_q, query_params={"query_vector": query_vector}
     )
 
+    flat_search_time = time.time() - flat_start_time
+    print(f"Search Time: {flat_search_time:.4f} seconds")
+    display_results(flat_results, "flat_score", top_k, wifi_required)
+
     # HNSW検索クエリ
+    print("\n=== HNSW Search ===")
+    hnsw_start_time = time.time()
+
     hnsw_vector_query = f"({price_filter})=>[KNN {top_k * 2} @text_embedding_hnsw $query_vector AS hnsw_score]"
-    hnsw_q = Query(hnsw_vector_query).sort_by("hnsw_score", asc=False).dialect(2)
+    hnsw_q = Query(hnsw_vector_query).sort_by("hnsw_score").dialect(2)
     hnsw_results = r.ft(index_name).search(
         hnsw_q, query_params={"query_vector": query_vector}
     )
 
-    print("\n=== FLAT Search Results ===")
-    display_results(flat_results, "flat_score", top_k, wifi_required)
-
-    print("\n=== HNSW Search Results ===")
+    hnsw_search_time = time.time() - hnsw_start_time
+    print(f"Search Time: {hnsw_search_time:.4f} seconds")
     display_results(hnsw_results, "hnsw_score", top_k, wifi_required)
+
+    # 検索時間の比較
+    print("\n=== Performance Comparison ===")
+    print(f"FLAT Search Time:  {flat_search_time:.4f} seconds")
+    print(f"HNSW Search Time:  {hnsw_search_time:.4f} seconds")
+    print(
+        f"Speed Difference:  {(flat_search_time/hnsw_search_time):.2f}x faster with HNSW"
+    )
 
 
 def display_results(results, score_attr, top_k, wifi_required):
