@@ -143,29 +143,29 @@ def search_listings(
     print("\n=== FLAT Search ===")
     flat_start_time = time.time()
 
-    flat_vector_query = f"({price_filter})=>[KNN {top_k * 2} @text_embedding $query_vector AS flat_score]"
-    flat_q = Query(flat_vector_query).sort_by("flat_score").dialect(2)
+    flat_vector_query = f"({price_filter})=>[KNN {top_k * 2} @text_embedding $query_vector AS flat_distance]"
+    flat_q = Query(flat_vector_query).sort_by("flat_distance").dialect(2)
     flat_results = r.ft(index_name).search(
         flat_q, query_params={"query_vector": query_vector}
     )
 
     flat_search_time = time.time() - flat_start_time
     print(f"Search Time: {flat_search_time:.4f} seconds")
-    display_results(flat_results, "flat_score", top_k, wifi_required)
+    display_results(flat_results, "flat_distance", top_k, wifi_required)
 
     # HNSW検索クエリ
     print("\n=== HNSW Search ===")
     hnsw_start_time = time.time()
 
-    hnsw_vector_query = f"({price_filter})=>[KNN {top_k * 2} @text_embedding_hnsw $query_vector AS hnsw_score]"
-    hnsw_q = Query(hnsw_vector_query).sort_by("hnsw_score").dialect(2)
+    hnsw_vector_query = f"({price_filter})=>[KNN {top_k * 2} @text_embedding_hnsw $query_vector AS hnsw_distance]"
+    hnsw_q = Query(hnsw_vector_query).sort_by("hnsw_distance").dialect(2)
     hnsw_results = r.ft(index_name).search(
         hnsw_q, query_params={"query_vector": query_vector}
     )
 
     hnsw_search_time = time.time() - hnsw_start_time
     print(f"Search Time: {hnsw_search_time:.4f} seconds")
-    display_results(hnsw_results, "hnsw_score", top_k, wifi_required)
+    display_results(hnsw_results, "hnsw_distance", top_k, wifi_required)
 
     # 検索時間の比較
     print("\n=== Performance Comparison ===")
@@ -176,7 +176,7 @@ def search_listings(
     )
 
 
-def display_results(results, score_attr, top_k, wifi_required):
+def display_results(results, distance_attr, top_k, wifi_required):
     displayed_results = 0
 
     for doc in results.docs:
@@ -186,13 +186,17 @@ def display_results(results, score_attr, top_k, wifi_required):
             if wifi_required and "Wifi" not in amenities_list:
                 continue
 
+            # コサイン距離から類似度への変換
+            distance = float(getattr(doc, distance_attr))
+            similarity = 1 - distance
+
             print("\n" + "=" * 80)
             print(f"\nID: {doc.id}")
             print(f"Name: {doc.name}")
             print(f"Space: {doc.space}")
             print(f"Price: ${doc.price}")
             print(f"Accommodates: {doc.accommodates}")
-            print(f"Similarity Score: {getattr(doc, score_attr)}")
+            print(f"Similarity Score: {similarity:.4f}")  # 小数点4桁まで表示
 
             print("\nAmenities:")
             amenities_per_line = 3
